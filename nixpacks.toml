@@ -1,8 +1,8 @@
+# Pin the Node version. distube, @discordjs/voice and undici all need 22.12+;
+# without this Railway resolves Node 18 and the @distube/yt-dlp postinstall
+# dies with "ReferenceError: File is not defined".
 [phases.setup]
 nixPkgs = ["nodejs_22"]
-
-[phases.install]
-cmds = ["npm install --include=dev"]
 
 [start]
 cmd = "npm start"

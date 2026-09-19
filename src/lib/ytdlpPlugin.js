@@ -179,8 +179,23 @@ class YtDlpPlugin extends ExtractorPlugin {
     const term = query.replace(/[\r\n]+/g, " ").trim();
     if (!term) return [];
     const count = Math.max(1, Math.min(limit, 25));
-    const info = await ytdlpJson(`ytsearch${count}:${term}`, ["--flat-playlist"]);
-    return (info.entries || []).filter((entry) => entry && entry.id && entry.title);
+
+    // DisTube catches every error a search throws and reports a bare
+    // `NO_RESULT`, which hides the real cause (a YouTube bot check, a missing
+    // binary, a blocked network). Log it here, where we still have it.
+    let info;
+    try {
+      info = await ytdlpJson(`ytsearch${count}:${term}`, ["--flat-playlist"]);
+    } catch (error) {
+      console.error(`[yt-dlp] Search failed for "${term}": ${error.message}`);
+      throw error;
+    }
+
+    const entries = (info.entries || []).filter((entry) => entry && entry.id && entry.title);
+    if (!entries.length) {
+      console.warn(`[yt-dlp] Search returned no usable entries for "${term}".`);
+    }
+    return entries;
   }
 
   /**
