@@ -110,10 +110,25 @@ function resolveCookieFile() {
  * `YTDLP_PROXY` routes requests somewhere other than the host's own IP, which
  * is the only reliable fix when the IP itself is what YouTube objects to.
  *
+ * `YTDLP_JS_RUNTIMES` picks the JavaScript runtime yt-dlp uses to solve
+ * YouTube's challenges. See {@link JS_RUNTIMES} below.
+ *
  * @returns {string[]}
  */
 function environmentFlags() {
   const flags = [];
+
+  // YouTube hides its format URLs behind JavaScript challenges, and yt-dlp
+  // solves them with an external runtime. Its default is Deno, which a Node
+  // image has no reason to carry; Node 22+ works just as well but has to be
+  // asked for by name. Without a runtime yt-dlp finds no formats at all and
+  // reports "Requested format is not available".
+  //
+  // Node is always present here — the bot itself requires 22.12+ — so it is
+  // the default. Set YTDLP_JS_RUNTIMES to empty to drop the flag entirely,
+  // which is what an older pinned yt-dlp (one predating --js-runtimes) needs.
+  const jsRuntimes = (process.env.YTDLP_JS_RUNTIMES ?? "node").trim();
+  if (jsRuntimes) flags.push("--js-runtimes", jsRuntimes);
 
   const cookies = resolveCookieFile();
   if (cookies) flags.push("--cookies", cookies);
