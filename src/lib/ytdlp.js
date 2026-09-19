@@ -2,6 +2,7 @@
 
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
 const BINARY_NAME = process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp";
@@ -50,6 +51,83 @@ const BASE_FLAGS = [
 ];
 
 /**
+ * Resolve the cookie file to pass to yt-dlp, or `null` when none is set.
+ *
+ * YouTube answers requests from datacenter IPs with "Sign in to confirm you're
+ * not a bot", which no amount of retrying gets past. Cookies from a signed-in
+ * session are the usual way through.
+ *
+ * Two spellings are accepted, because a platform like Railway has no
+ * filesystem to upload a cookie file to:
+ *
+ * - `YTDLP_COOKIES` — a path to a Netscape-format cookie file.
+ * - `YTDLP_COOKIES_CONTENT` — the file's *contents*, as an environment
+ *   variable. Written to a private temporary file on first use. Literal `\n`
+ *   sequences are treated as newlines, so a single-line value also works.
+ *
+ * Use a throwaway Google account: these cookies grant access to it, and
+ * YouTube invalidates them periodically, so expect to refresh them.
+ *
+ * @returns {string | null}
+ */
+let cookieFile;
+function resolveCookieFile() {
+  if (cookieFile !== undefined) return cookieFile;
+
+  const explicit = process.env.YTDLP_COOKIES?.trim();
+  if (explicit) {
+    cookieFile = explicit;
+    return cookieFile;
+  }
+
+  const content = process.env.YTDLP_COOKIES_CONTENT;
+  if (content?.trim()) {
+    const text = content.includes("\n") ? content : content.replace(/\\n/g, "\n");
+    const file = path.join(os.tmpdir(), "yt-dlp-cookies.txt");
+    try {
+      fs.writeFileSync(file, text.endsWith("\n") ? text : `${text}\n`, { mode: 0o600 });
+      cookieFile = file;
+      return cookieFile;
+    } catch (error) {
+      console.error(`[yt-dlp] Could not write the cookie file: ${error.message}`);
+    }
+  }
+
+  cookieFile = null;
+  return cookieFile;
+}
+
+/**
+ * Flags built from the environment, so authentication and extraction strategy
+ * can change without a code change.
+ *
+ * `YTDLP_EXTRACTOR_ARGS` is the cookie-free lever: YouTube's clients differ in
+ * how aggressively they challenge, so a value like
+ * `youtube:player_client=tv_simply` sometimes succeeds where the default
+ * fails. Which clients work shifts over time — check the yt-dlp issue tracker
+ * before assuming a value is still good.
+ *
+ * `YTDLP_PROXY` routes requests somewhere other than the host's own IP, which
+ * is the only reliable fix when the IP itself is what YouTube objects to.
+ *
+ * @returns {string[]}
+ */
+function environmentFlags() {
+  const flags = [];
+
+  const cookies = resolveCookieFile();
+  if (cookies) flags.push("--cookies", cookies);
+
+  const extractorArgs = process.env.YTDLP_EXTRACTOR_ARGS?.trim();
+  if (extractorArgs) flags.push("--extractor-args", extractorArgs);
+
+  const proxy = process.env.YTDLP_PROXY?.trim();
+  if (proxy) flags.push("--proxy", proxy);
+
+  return flags;
+}
+
+/**
  * Run yt-dlp and parse its JSON output.
  *
  * Unlike the wrapper shipped by `@distube/yt-dlp`, stdout and stderr are kept
@@ -63,7 +141,8 @@ const BASE_FLAGS = [
  */
 function ytdlpJson(target, extraFlags = [], { timeout = 60_000 } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(YTDLP_PATH, [...BASE_FLAGS, ...extraFlags, target], {
+    const args = [...BASE_FLAGS, ...environmentFlags(), ...extraFlags, target];
+    const child = spawn(YTDLP_PATH, args, {
       windowsHide: true,
     });
 
