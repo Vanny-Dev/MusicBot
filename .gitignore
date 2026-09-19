@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Secrets — never commit your bot token
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# Runtime and editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Build and cache output
+dist/
+build/
+.cache/
+coverage/
