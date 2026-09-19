@@ -25,3 +25,6 @@ build/
 coverage/
 
 package-lock.json
+
+# yt-dlp binary downloaded by scripts/setup-ytdlp.js
+bin/

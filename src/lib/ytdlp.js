@@ -1,22 +1,35 @@
 "use strict";
 
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 
+const BINARY_NAME = process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp";
+
 /**
- * Absolute path to the `yt-dlp` executable that `@distube/yt-dlp` downloads on
- * install. Resolving it through `require.resolve` keeps us pointed at the
- * package's own binary, so `npm install` / `npm update` keeps it current.
+ * The standalone build downloaded by `scripts/setup-ytdlp.js` on install. It
+ * bundles its own Python interpreter, so it runs on a bare container.
  */
+const STANDALONE_BINARY = path.join(__dirname, "..", "..", "bin", BINARY_NAME);
+
+/**
+ * The binary `@distube/yt-dlp` downloads on install. This is the *Python
+ * zipapp* release, so it needs a `python3` on PATH and fails with
+ * "env: 'python3': No such file or directory" where there is none. Used only
+ * when the standalone build is missing.
+ */
+const PACKAGE_BINARY = path.join(
+  // `.../@distube/yt-dlp/dist/index.js` -> `.../@distube/yt-dlp/bin/yt-dlp`
+  path.dirname(require.resolve("@distube/yt-dlp")),
+  "..",
+  "bin",
+  BINARY_NAME,
+);
+
+/** Absolute path to the `yt-dlp` executable this bot will run. */
 const YTDLP_PATH =
   process.env.YTDLP_PATH ||
-  path.join(
-    // `.../@distube/yt-dlp/dist/index.js` -> `.../@distube/yt-dlp/bin/yt-dlp`
-    path.dirname(require.resolve("@distube/yt-dlp")),
-    "..",
-    "bin",
-    process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp",
-  );
+  (fs.existsSync(STANDALONE_BINARY) ? STANDALONE_BINARY : PACKAGE_BINARY);
 
 /**
  * Flags shared by every metadata lookup.
