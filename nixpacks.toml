@@ -1,8 +1,13 @@
 # Pin the Node version. distube, @discordjs/voice and undici all need 22.12+;
 # without this Railway resolves Node 18 and the @distube/yt-dlp postinstall
 # dies with "ReferenceError: File is not defined".
+#
+# python3 is required at runtime, not build time: the yt-dlp that
+# @distube/yt-dlp downloads is the Python zipapp (shebang
+# "#!/usr/bin/env python3"), not the standalone binary. Without it every
+# lookup fails with "env: 'python3': No such file or directory".
 [phases.setup]
-nixPkgs = ["nodejs_22"]
+nixPkgs = ["nodejs_22", "python3"]
 
 [start]
 cmd = "npm start"
